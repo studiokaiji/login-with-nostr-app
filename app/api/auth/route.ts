@@ -48,8 +48,6 @@ const validateNIP98Event = <T extends boolean = false>(
   return true;
 };
 
-const getUserKey = (pubkey: string) => `users.${pubkey}`;
-
 export async function GET(request: NextRequest) {
   const authorization = request.headers.get("authorization");
   if (!authorization) {
@@ -89,25 +87,17 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ message: "Failed to decode" }, { status: 401 });
   }
 
-  const userKey = getUserKey(event.pubkey);
+  const res = await kv.zadd("users", {
+    score: Date.now(),
+    member: event.pubkey,
+  });
 
-  const isNewUser = (await kv.exists(userKey)) === 0;
-
-  if (isNewUser) {
-    await kv
-      .multi()
-      .json.set(userKey, "$", {
-        createdAt: Date.now(),
-        status: "active",
-      })
-      .incr(USERS_COUNT_KEY)
-      .exec();
-  }
+  const isNewUser = typeof res === "number" && res > 0;
 
   return new NextResponse(
     JSON.stringify({
       message: isNewUser ? "Hello, world!" : "Welcome back",
-      isNewUser
+      isNewUser,
     }),
     {
       status: 200,
