@@ -1,20 +1,41 @@
 "use client";
 
-import { Button } from "#/components/Button";
-import { useEffect, useLayoutEffect, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useState,
+} from "react";
+import { SimplePool } from "nostr-tools";
+import { ProfileCard } from "#/components/ProfileCard";
+
+const relays = [
+  "wss://relay.damus.io",
+  "wss://nos.lol",
+  "wss://relay.nostr.wirednet.jp",
+  "wss://relay-jp.nostr.wirednet.jp",
+  "wss://nostr-relay.nokotaro.com",
+];
 
 export default function Home() {
   const [usersCount, setUsersCount] = useState<number>();
-  const [err, setErr] = useState("");
-  const [isLoggedIn, setIsLoggedIn] = useState(true);
-  const [isAuthenticating, setIsAuthenticating] = useState(false);
-  const [isNewUser, setIsNewUser] = useState(false);
+  const [users, setUsers] = useState<
+    {
+      pubkey: string;
+      profile: Profile;
+    }[]
+  >();
+
+  const [myProfile, setMyProfile] = useState<{
+    pubkey: string;
+    profile: Profile;
+  }>();
+
+  const pool = useMemo(() => new SimplePool(), []);
 
   useLayoutEffect(() => {
-    setErr("");
-    fetch(
-      `${window.location.protocol}//${window.location.host}/api/users/count`
-    )
+    fetch("/api/users/count")
       .then(async (res) => {
         if (!res.ok) {
           throw new Error("Failed to fetch users count");
@@ -23,39 +44,43 @@ export default function Home() {
         setUsersCount(data.count);
       })
       .catch((e) => {
-        setErr(e);
+        console.error(e);
       });
-  }, []);
 
-  useEffect(() => {
-    window
-      .nostr!.getPublicKey()
-      .then((publicKey) => {
-        if (publicKey) {
-          setIsLoggedIn(true);
-        } else {
-          throw 0;
+    fetch("/api/users/recent")
+      .then(async (res) => {
+        if (!res.ok) {
+          throw new Error("Failed to fetch users");
         }
+        const data = await res.json();
+
+        const events = await pool.list(
+          relays,
+          data.users.map((pubkey: string) => ({
+            kinds: [0],
+            authors: [pubkey],
+          }))
+        );
+
+        const users = events.map((event) => ({
+          profile: JSON.parse(event.content),
+          pubkey: event.pubkey,
+        }));
+        setUsers(users);
       })
-      .catch(() => {
-        setIsLoggedIn(false);
+      .catch((e) => {
+        console.error(e);
+        setUsers([]);
       });
-  }, []);
+  }, [pool]);
 
-  useEffect(() => {
-    if (!err) return;
-    alert(err);
-  }, [err]);
-
-  const signInWithNostr = async () => {
+  const signInWithNostr = useCallback(async () => {
     if (!window.nostr) {
-      window.alert("NIP-07 client is required.");
+      console.error("NIP-07 client is required.");
       return;
     }
 
     try {
-      setIsAuthenticating(true);
-
       const pubkey = await window.nostr.getPublicKey();
 
       const signedEvent = await window.nostr.signEvent({
@@ -87,37 +112,54 @@ export default function Home() {
 
       const resJson = await res.json();
       const isNew: boolean = resJson["isNewUser"];
-      setIsNewUser(isNew);
       if (isNew && usersCount) {
         setUsersCount(usersCount + 1);
       }
     } catch (error) {
-      window.alert("Failed to get Public Key...");
-    } finally {
-      setIsAuthenticating(false);
+      console.error(error);
     }
-  };
+  }, [usersCount]);
+
+  useEffect(() => {
+    signInWithNostr().then(async () => {
+      const pubkey = await window.nostr!.getPublicKey();
+      const event = await pool.get(relays, { kinds: [0], authors: [pubkey] });
+      if (!event) {
+        return;
+      }
+      setMyProfile({
+        profile: JSON.parse(event.content),
+        pubkey: event.pubkey,
+      });
+    });
+  }, [signInWithNostr, pool]);
 
   return (
-    <main className="flex flex-col items-center justify-center space-y-7 p-7">
-      <h1 className="text-5xl font-semibold">Login with Nostr</h1>
-      <p className="flex items-center space-x-2 text-xl font-medium">
-        <span>💃🕺 All Users:</span>
+    <main className="flex flex-col space-y-7 p-7">
+      <div className="absolute right-7 top-7">
+        {myProfile && <ProfileCard {...myProfile} />}
+      </div>
+      <h1 className="text-5xl font-bold">🫡Nostr Auth</h1>
+      <div className="flex max-w-xs flex-col space-y-3">
+        <h3 className="text-xl font-medium">🫂 Recent Users</h3>
+        {users ? (
+          users.map((profile, i) => (
+            <div className="inline-block" key={`profiles-${i}`}>
+              <ProfileCard {...profile} />
+            </div>
+          ))
+        ) : (
+          <div className="mt-4 h-10 w-10 animate-spin rounded-full border-4 border-slate-400 border-t-transparent"></div>
+        )}
+      </div>
+      <h3 className="flex items-center space-x-2 text-xl font-medium">
+        <span>💃🕺 All Users :</span>
         {usersCount === undefined ? (
           <span className="inline-block h-6 w-6 animate-pulse rounded bg-slate-200"></span>
         ) : (
           <span>{usersCount}</span>
         )}
-      </p>
-      <div>
-        <Button
-          disabled={isLoggedIn}
-          onClick={signInWithNostr}
-          isProcessing={isAuthenticating}
-        >
-          Sign In With Nostr
-        </Button>
-      </div>
+      </h3>
     </main>
   );
 }
