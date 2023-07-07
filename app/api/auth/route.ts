@@ -3,6 +3,8 @@ import { Event, validateEvent } from "nostr-tools";
 import { createHash } from "crypto";
 import { kv } from "@vercel/kv";
 
+export const fetchCache = "only-no-store";
+
 const validateNIP98Event = <T extends boolean = false>(
   event: Event,
   params: {

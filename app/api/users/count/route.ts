@@ -1,6 +1,8 @@
 import { kv } from "@vercel/kv";
 import { NextRequest, NextResponse } from "next/server";
 
+export const fetchCache = "only-no-store";
+
 export async function GET(_: NextRequest) {
   const usersCount = await kv.zcount("users", "-inf", "+inf");
   if (typeof usersCount !== "number") {
