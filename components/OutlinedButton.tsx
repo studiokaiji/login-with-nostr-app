@@ -12,7 +12,7 @@ export const OutlinedButton = (
       disabled={props.disabled || props.isProcessing}
     >
       <div
-        className={`mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent ${
+        className={`mr-2 h-4 w-4 animate-spin rounded-full border-2 border-orange-500 border-t-transparent ${
           props.isProcessing ? "visible" : "hidden"
         }`}
       ></div>
