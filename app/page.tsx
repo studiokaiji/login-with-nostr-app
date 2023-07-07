@@ -7,7 +7,7 @@ import {
   useMemo,
   useState,
 } from "react";
-import { SimplePool } from "nostr-tools";
+import { Event, SimplePool } from "nostr-tools";
 import { ProfileCard } from "#/components/ProfileCard";
 
 const relays = [
@@ -58,7 +58,9 @@ export default function Home() {
         }
         const data = await res.json();
 
-        const events = await pool.list(
+        console.log(data);
+
+        const sub = pool.sub(
           relays,
           data.users.map((pubkey: string) => ({
             kinds: [0],
@@ -66,16 +68,43 @@ export default function Home() {
           }))
         );
 
-        const users = events.map((event) => ({
-          profile: JSON.parse(event.content),
-          pubkey: event.pubkey,
-        }));
+        const events: { [key: string]: Event } = {};
+
+        await new Promise<void>((resolve) => {
+          sub.on("event", (event) => {
+            events[event.pubkey] = event;
+            if (Object.keys(events).length >= data.users.length) {
+              resolve();
+            }
+          });
+
+          sub.on("eose", () => {
+            if (myProfile) {
+              pool.close(relays);
+              resolve();
+            }
+          });
+        });
+
+        const users: {
+          pubkey: string;
+          profile: Profile;
+        }[] = [];
+        data.users.forEach((userPubKey: string) => {
+          const event = events[userPubKey];
+          if (!event) return;
+          users.push({
+            profile: event ? JSON.parse(event.content) : null,
+            pubkey: userPubKey,
+          });
+        });
         setUsers(users);
       })
       .catch((e) => {
         console.error(e);
         setUsers([]);
       });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pool]);
 
   const signInWithNostr = useCallback(async () => {
@@ -108,7 +137,7 @@ export default function Home() {
         headers: {
           Authorization: `Nostr ${token}`,
         },
-        cache: 'no-store'
+        cache: "no-store",
       });
 
       if (!res.ok) {
@@ -132,11 +161,15 @@ export default function Home() {
       if (!event) {
         return;
       }
+      if (users) {
+        pool.close(relays);
+      }
       setMyProfile({
         profile: JSON.parse(event.content),
         pubkey: event.pubkey,
       });
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [signInWithNostr, pool]);
 
   return (
