@@ -7,7 +7,7 @@ import {
   useMemo,
   useState,
 } from "react";
-import { SimplePool } from "nostr-tools";
+import { Event, SimplePool } from "nostr-tools";
 import { ProfileCard } from "#/components/ProfileCard";
 
 const relays = [
@@ -35,7 +35,7 @@ export default function Home() {
   const pool = useMemo(() => new SimplePool(), []);
 
   useLayoutEffect(() => {
-    fetch("/api/users/count")
+    fetch("/api/users/count", { next: { revalidate: 0 } })
       .then(async (res) => {
         if (!res.ok) {
           throw new Error("Failed to fetch users count");
@@ -47,14 +47,14 @@ export default function Home() {
         console.error(e);
       });
 
-    fetch("/api/users/recent")
+    fetch("/api/users/recent", { next: { revalidate: 0 } })
       .then(async (res) => {
         if (!res.ok) {
           throw new Error("Failed to fetch users");
         }
         const data = await res.json();
 
-        const events = await pool.list(
+        const sub = pool.sub(
           relays,
           data.users.map((pubkey: string) => ({
             kinds: [0],
@@ -62,16 +62,45 @@ export default function Home() {
           }))
         );
 
-        const users = events.map((event) => ({
-          profile: JSON.parse(event.content),
-          pubkey: event.pubkey,
-        }));
+        const events: { [key: string]: Event } = {};
+
+        await new Promise<void>((resolve) => {
+          sub.on("event", (event) => {
+            events[event.pubkey] = event;
+            if (Object.keys(events).length >= data.users.length) {
+              resolve();
+            }
+          });
+
+          sub.on("eose", () => {
+            if (myProfile) {
+              pool.close(relays);
+              resolve();
+            }
+          });
+
+          setTimeout(() => resolve(), 5000);
+        });
+
+        const users: {
+          pubkey: string;
+          profile: Profile;
+        }[] = [];
+        data.users.forEach((userPubKey: string) => {
+          const event = events[userPubKey];
+          if (!event) return;
+          users.push({
+            profile: event ? JSON.parse(event.content) : null,
+            pubkey: userPubKey,
+          });
+        });
         setUsers(users);
       })
       .catch((e) => {
         console.error(e);
         setUsers([]);
       });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pool]);
 
   const signInWithNostr = useCallback(async () => {
@@ -104,6 +133,7 @@ export default function Home() {
         headers: {
           Authorization: `Nostr ${token}`,
         },
+        next: { revalidate: 0 } 
       });
 
       if (!res.ok) {
@@ -127,11 +157,15 @@ export default function Home() {
       if (!event) {
         return;
       }
+      if (users) {
+        pool.close(relays);
+      }
       setMyProfile({
         profile: JSON.parse(event.content),
         pubkey: event.pubkey,
       });
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [signInWithNostr, pool]);
 
   return (

@@ -17,8 +17,6 @@ export const ProfileCard = ({
     }, 2000);
   };
 
-  console.log(profile);
-
   return (
     <button onClick={copy} className="cursor-pointer">
       <div className="flex items-center space-x-2 rounded bg-white p-4 font-medium shadow-md">
