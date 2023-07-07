@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Event, SimplePool } from "nostr-tools";
 import { ProfileCard } from "#/components/ProfileCard";
+import { Button } from "#/components/Button";
 
 const relays = [
   "wss://relay.damus.io",
@@ -21,17 +22,20 @@ export default function Home() {
     }[]
   >();
 
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [isRemoving, setIsRemoving] = useState(false);
+
   const [myProfile, setMyProfile] = useState<{
     pubkey: string;
     profile: Profile;
   }>();
 
-  const [isNewUser, setIsNewUser] = useState(false);
+  const [changedUsersState, setChangedUsersState] = useState(false);
 
   const pool = useMemo(() => new SimplePool(), []);
 
   useEffect(() => {
-    if (usersCount !== undefined && users !== undefined && !isNewUser) {
+    if (usersCount !== undefined && users !== undefined && !changedUsersState) {
       console.log("aaaaa");
       return;
     }
@@ -107,14 +111,18 @@ export default function Home() {
         console.error(e);
         setUsers([]);
       });
+
+    setChangedUsersState(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pool, isNewUser]);
+  }, [pool, changedUsersState]);
 
   const signInWithNostr = useCallback(async () => {
     if (!window.nostr) {
       console.error("NIP-07 client is required.");
       return;
     }
+
+    setIsAuthenticating(true);
 
     try {
       const pubkey = await window.nostr.getPublicKey();
@@ -151,38 +159,99 @@ export default function Home() {
       const resJson = await res.json();
       const isNew: boolean = resJson["isNewUser"];
       if (isNew) {
-        setUsersCount((usersCount || 0) + 1);
-        setIsNewUser(true);
+        setChangedUsersState(true);
       }
-    } catch (error) {
-      console.error(error);
-    }
-  }, [usersCount]);
 
-  useEffect(() => {
-    signInWithNostr().then(async () => {
-      const pubkey = await window.nostr!.getPublicKey();
-      const event = await pool.get(relays, { kinds: [0], authors: [pubkey] });
+      const event = await pool.get(relays, {
+        kinds: [0],
+        authors: [pubkey],
+      });
       if (!event) {
         return;
       }
       if (users) {
         pool.close(relays);
       }
+
+      const profile = JSON.parse(event.content);
+
       setMyProfile({
-        profile: JSON.parse(event.content),
+        profile,
         pubkey: event.pubkey,
       });
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [signInWithNostr, pool]);
+
+      console.log(isNew);
+
+      if (isNew) {
+        setUsers([profile, ...(users || [])].slice(0, 4));
+        setUsersCount((usersCount || 0) + 1);
+      }
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsAuthenticating(false);
+    }
+  }, [pool, users, usersCount, setUsersCount]);
+
+  const removeMyData = async () => {
+    try {
+      setIsRemoving(true);
+
+      const pubkey = await window.nostr!.getPublicKey();
+
+      const signedEvent = await window.nostr!.signEvent({
+        kind: 27235,
+        created_at: Date.now(),
+        tags: [
+          [
+            "u",
+            `${window.location.protocol}//${window.location.host}/api/auth`,
+          ],
+          ["method", "GET"],
+        ],
+        content: "",
+        pubkey,
+      });
+
+      const token = btoa(JSON.stringify(signedEvent));
+
+      const res = await fetch("/api/users/my-data", {
+        method: "DELETE",
+        headers: {
+          Authorization: `Nostr ${token}`,
+        },
+        next: { revalidate: 0 },
+        cache: "reload",
+      });
+      if (!res.ok) {
+        alert(`${res.status}\n${res.statusText}`);
+      }
+
+      setChangedUsersState(true);
+      setMyProfile(undefined);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsRemoving(false);
+    }
+  };
 
   return (
     <main className="flex flex-col space-y-7 p-7">
       <div className="absolute right-7 top-7">
-        {myProfile && <ProfileCard {...myProfile} />}
+        {myProfile ? (
+          <ProfileCard
+            {...myProfile}
+            remove={removeMyData}
+            isProcessing={isRemoving}
+          />
+        ) : (
+          <Button onClick={signInWithNostr} isProcessing={isAuthenticating}>
+            Sign In With Nostr
+          </Button>
+        )}
       </div>
-      <h1 className="text-5xl font-bold">🫡Nostr Auth</h1>
+      <h1 className="text-5xl font-bold">🫡Nostr Auth Demo</h1>
       <div className="flex max-w-xs flex-col space-y-3">
         <h3 className="text-xl font-medium">🫂 Recent Users</h3>
         {users ? (
