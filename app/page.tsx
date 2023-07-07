@@ -35,7 +35,10 @@ export default function Home() {
       return;
     }
 
-    fetch("/api/users/count", { next: { revalidate: 0 } })
+    fetch("/api/users/count", {
+      next: { revalidate: 0 },
+      cache: "reload",
+    })
       .then(async (res) => {
         if (!res.ok) {
           throw new Error("Failed to fetch users count");
@@ -47,7 +50,10 @@ export default function Home() {
         console.error(e);
       });
 
-    fetch("/api/users/recent", { next: { revalidate: 0 } })
+    fetch("/api/users/recent", {
+      next: { revalidate: 0 },
+      cache: "reload",
+    })
       .then(async (res) => {
         if (!res.ok) {
           throw new Error("Failed to fetch users");
@@ -134,6 +140,7 @@ export default function Home() {
           Authorization: `Nostr ${token}`,
         },
         next: { revalidate: 0 },
+        cache: "reload",
       });
 
       if (!res.ok) {
