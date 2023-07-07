@@ -35,7 +35,9 @@ export default function Home() {
   const pool = useMemo(() => new SimplePool(), []);
 
   useLayoutEffect(() => {
-    fetch("/api/users/count")
+    fetch("/api/users/count", {
+      cache: "no-store",
+    })
       .then(async (res) => {
         if (!res.ok) {
           throw new Error("Failed to fetch users count");
@@ -47,7 +49,9 @@ export default function Home() {
         console.error(e);
       });
 
-    fetch("/api/users/recent")
+    fetch("/api/users/recent", {
+      cache: "no-store",
+    })
       .then(async (res) => {
         if (!res.ok) {
           throw new Error("Failed to fetch users");
@@ -104,6 +108,7 @@ export default function Home() {
         headers: {
           Authorization: `Nostr ${token}`,
         },
+        cache: 'no-store'
       });
 
       if (!res.ok) {
