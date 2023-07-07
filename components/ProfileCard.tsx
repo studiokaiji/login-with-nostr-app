@@ -1,25 +1,19 @@
-import { useState } from "react";
+import { OutlinedButton } from "./OutlinedButton";
 
 export const ProfileCard = ({
   profile,
   pubkey,
+  remove,
+  isProcessing,
 }: {
   profile: Profile;
   pubkey: string;
+  remove?: () => void;
+  isProcessing?: boolean;
 }) => {
-  const [copied, setCopied] = useState(false);
-
-  const copy = () => {
-    navigator.clipboard.writeText(pubkey);
-    setCopied(true);
-    setTimeout(() => {
-      setCopied(false);
-    }, 2000);
-  };
-
   return (
-    <button onClick={copy} className="cursor-pointer">
-      <div className="flex items-center space-x-2 rounded bg-white p-4 font-medium shadow-md">
+    <div className="space-y-2 rounded bg-white p-4 font-medium shadow-md">
+      <div className="flex items-center space-x-2">
         <img
           className="rounded bg-slate-200"
           src={profile?.picture || ""}
@@ -28,10 +22,12 @@ export const ProfileCard = ({
           height={40}
         />
         <p className="overflow-hidden">{profile?.name}</p>
-        {copied && (
-          <p className="text-sm leading-none text-orange-600">Pubkey Copied!</p>
-        )}
       </div>
-    </button>
+      {remove && (
+        <div>
+          <OutlinedButton onClick={remove} isProcessing={isProcessing}>Remove User Data</OutlinedButton>
+        </div>
+      )}
+    </div>
   );
 };
