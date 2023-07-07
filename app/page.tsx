@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Event, SimplePool } from "nostr-tools";
 import { ProfileCard } from "#/components/ProfileCard";
 
@@ -32,9 +26,15 @@ export default function Home() {
     profile: Profile;
   }>();
 
+  const [isNewUser, setIsNewUser] = useState(false);
+
   const pool = useMemo(() => new SimplePool(), []);
 
-  useLayoutEffect(() => {
+  useEffect(() => {
+    if (usersCount !== undefined && users !== undefined && !isNewUser) {
+      return;
+    }
+
     fetch("/api/users/count", { next: { revalidate: 0 } })
       .then(async (res) => {
         if (!res.ok) {
@@ -101,7 +101,7 @@ export default function Home() {
         setUsers([]);
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pool]);
+  }, [pool, isNewUser]);
 
   const signInWithNostr = useCallback(async () => {
     if (!window.nostr) {
@@ -133,7 +133,7 @@ export default function Home() {
         headers: {
           Authorization: `Nostr ${token}`,
         },
-        next: { revalidate: 0 } 
+        next: { revalidate: 0 },
       });
 
       if (!res.ok) {
@@ -144,6 +144,7 @@ export default function Home() {
       const isNew: boolean = resJson["isNewUser"];
       if (isNew && usersCount) {
         setUsersCount(usersCount + 1);
+        setIsNewUser(true);
       }
     } catch (error) {
       console.error(error);
