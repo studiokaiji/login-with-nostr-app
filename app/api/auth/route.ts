@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Event, validateEvent } from "nostr-tools";
 import { createHash } from "crypto";
-import kv from "@vercel/kv";
-import { USERS_COUNT_KEY } from "#/constants/kv";
+import { kv } from "@vercel/kv";
 
 const validateNIP98Event = <T extends boolean = false>(
   event: Event,
