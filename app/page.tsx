@@ -32,6 +32,7 @@ export default function Home() {
 
   useEffect(() => {
     if (usersCount !== undefined && users !== undefined && !isNewUser) {
+      console.log("aaaaa");
       return;
     }
 
@@ -149,8 +150,8 @@ export default function Home() {
 
       const resJson = await res.json();
       const isNew: boolean = resJson["isNewUser"];
-      if (isNew && usersCount) {
-        setUsersCount(usersCount + 1);
+      if (isNew) {
+        setUsersCount((usersCount || 0) + 1);
         setIsNewUser(true);
       }
     } catch (error) {
