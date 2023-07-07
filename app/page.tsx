@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Event, SimplePool } from "nostr-tools";
 import { ProfileCard } from "#/components/ProfileCard";
-import axios from "axios";
 
 const relays = [
   "wss://relay.damus.io",
@@ -36,26 +35,30 @@ export default function Home() {
       return;
     }
 
-    axios
-      .get("/api/users/count")
+    fetch("/api/users/count", {
+      next: { revalidate: 0 },
+      cache: "reload",
+    })
       .then(async (res) => {
-        if (res.status !== 200) {
+        if (!res.ok) {
           throw new Error("Failed to fetch users count");
         }
-        const data = res.data;
+        const data = await res.json();
         setUsersCount(data.count);
       })
       .catch((e) => {
         console.error(e);
       });
 
-    axios
-      .get("/api/users/recent")
+    fetch("/api/users/recent", {
+      next: { revalidate: 0 },
+      cache: "reload",
+    })
       .then(async (res) => {
-        if (res.status !== 200) {
+        if (!res.ok) {
           throw new Error("Failed to fetch users");
         }
-        const data = res.data;
+        const data = await res.json();
 
         const sub = pool.sub(
           relays,
@@ -131,18 +134,20 @@ export default function Home() {
 
       const token = btoa(JSON.stringify(signedEvent));
 
-      const res = await axios.get("/api/auth", {
+      const res = await fetch("/api/auth", {
+        method: "GET",
         headers: {
           Authorization: `Nostr ${token}`,
         },
+        next: { revalidate: 0 },
+        cache: "reload",
       });
 
-      if (res.status !== 200) {
+      if (!res.ok) {
         alert(`${res.status}\n${res.statusText}`);
       }
 
-      res.data;
-      const resJson = await res.data;
+      const resJson = await res.json();
       const isNew: boolean = resJson["isNewUser"];
       if (isNew && usersCount) {
         setUsersCount(usersCount + 1);
