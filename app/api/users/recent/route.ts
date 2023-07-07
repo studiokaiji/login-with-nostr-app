@@ -1,7 +1,7 @@
 import { kv } from "@vercel/kv";
 import { NextRequest, NextResponse } from "next/server";
 
-export const fetchCache = "only-no-store";
+export const dynamic = "force-dynamic";
 
 export async function GET(_: NextRequest) {
   const users = await kv.zrange("users", "+inf", "-inf", {
